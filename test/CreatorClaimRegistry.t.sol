@@ -3,7 +3,9 @@ pragma solidity ^0.8.13;
 
 import {Test} from "forge-std/Test.sol";
 import {
-    CreatorClaimRegistry, CreatorClaim
+    CreatorClaimRegistry,
+    ICreatorClaimRegistry,
+    CreatorClaim
 } from "../src/CreatorClaimRegistry.sol";
 
 contract Ownable {
@@ -59,7 +61,7 @@ contract CreatorClaimRegistryTest is Test {
             timestamp: block.timestamp,
             lifespan: 0
         });
-        vm.expectRevert(CreatorClaimRegistry.NotOwner.selector);
+        vm.expectRevert(ICreatorClaimRegistry.NotOwner.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -70,7 +72,7 @@ contract CreatorClaimRegistryTest is Test {
             timestamp: block.timestamp,
             lifespan: test.MAX_LIFESPAN() + 1 + uint256(lifespanDelta)
         });
-        vm.expectRevert(CreatorClaimRegistry.InvalidLifespan.selector);
+        vm.expectRevert(ICreatorClaimRegistry.InvalidLifespan.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -82,7 +84,7 @@ contract CreatorClaimRegistryTest is Test {
             lifespan: 0
         });
         vm.warp(block.timestamp + test.MAX_LIFESPAN() + 1);
-        vm.expectRevert(CreatorClaimRegistry.TimestampExpired.selector);
+        vm.expectRevert(ICreatorClaimRegistry.TimestampExpired.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -101,7 +103,7 @@ contract CreatorClaimRegistryTest is Test {
             timestamp: timestamp,
             lifespan: lifespan
         });
-        vm.expectRevert(CreatorClaimRegistry.TimestampExpired.selector);
+        vm.expectRevert(ICreatorClaimRegistry.TimestampExpired.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -121,7 +123,7 @@ contract CreatorClaimRegistryTest is Test {
             timestamp: signatureTimestamp,
             lifespan: test.MAX_LIFESPAN()
         });
-        vm.expectRevert(CreatorClaimRegistry.TimestampInFuture.selector);
+        vm.expectRevert(ICreatorClaimRegistry.TimestampInFuture.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -139,7 +141,7 @@ contract CreatorClaimRegistryTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.key, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(CreatorClaimRegistry.InvalidSignature.selector);
+        vm.expectRevert(ICreatorClaimRegistry.InvalidSignature.selector);
         test.claimAsCreator(claim, signature);
     }
 
@@ -178,7 +180,7 @@ contract CreatorClaimRegistryTest is Test {
         vm.expectEmit(true, true, false, false, address(test));
         emit ClaimAsCreator(signer.addr, address(ownable));
         test.claimAsCreator(claim, signature);
-        vm.expectRevert(CreatorClaimRegistry.DigestAlreadyUsed.selector);
+        vm.expectRevert(ICreatorClaimRegistry.DigestAlreadyUsed.selector);
         test.claimAsCreator(claim, signature);
     }
 
@@ -213,7 +215,7 @@ contract CreatorClaimRegistryTest is Test {
         bytes32 digest = test.deriveDigest(claim);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.key, digest);
         bytes32 vs = bytes32(uint256(((v == 28) ? 1 : 0)) << 255 | uint256(s));
-        vm.expectRevert(CreatorClaimRegistry.InvalidSignature.selector);
+        vm.expectRevert(ICreatorClaimRegistry.InvalidSignature.selector);
         test.claimAsCreator(claim, r, vs);
     }
 
@@ -234,7 +236,7 @@ contract CreatorClaimRegistryTest is Test {
         vm.expectEmit(true, true, false, false, address(test));
         emit ClaimAsCreator(signer.addr, address(ownable));
         test.claimAsCreator(claim, r, vs);
-        vm.expectRevert(CreatorClaimRegistry.DigestAlreadyUsed.selector);
+        vm.expectRevert(ICreatorClaimRegistry.DigestAlreadyUsed.selector);
         test.claimAsCreator(claim, signature);
     }
 

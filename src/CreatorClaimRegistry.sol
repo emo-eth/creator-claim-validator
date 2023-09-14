@@ -2,54 +2,39 @@
 pragma solidity ^0.8.13;
 
 import {ECDSA} from "solady/utils/ECDSA.sol";
+import {IERC1271} from "./interfaces/IERC1271.sol";
+import {IOwnable} from "./interfaces/IOwnable.sol";
 
-struct CreatorClaim {
-    address creator;
-    address contractAddress;
-    uint256 timestamp;
-    uint256 lifespan;
-}
+import {
+    ICreatorClaimRegistry,
+    CreatorClaim
+} from "./interfaces/ICreatorClaimRegistry.sol";
 
-interface Ownable {
-    function owner() external view returns (address);
-}
-
-interface EIP1271 {
-    function isValidSignature(bytes32 hash, bytes calldata signature)
-        external
-        view
-        returns (bytes4);
-}
-
-contract CreatorClaimRegistry {
-    event ClaimAsCreator(
-        address indexed creator, address indexed contractAddress
-    );
-    event RevokeAsCreator(
-        address indexed creator, address indexed contractAddress
-    );
-
-    error NotOwner();
-    error TimestampExpired();
-    error TimestampInFuture();
-    error InvalidLifespan();
-    error DigestAlreadyUsed();
-    error InvalidSignature();
-
-    bytes32 public constant CONTRACT_OWNERSHIP_TYPEHASH = keccak256(
-        "ContractOwnershipClaim(address creator,address contractAddress,uint256 "
+contract CreatorClaimRegistry is ICreatorClaimRegistry {
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
+    bytes32 public constant CREATOR_CLAIM_TYPEHASH = keccak256(
+        "CreatorClaim(address creator,address contractAddress,uint256 "
         "timestamp,uint256 lifespan)"
     );
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
         "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
     );
-    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     uint256 public immutable MAX_LIFESPAN;
+
+    bytes4 internal constant ERC1271_MAGIC_VALUE = 0x1626ba7e;
 
     bytes32 internal immutable DOMAIN_SEPARATOR;
     uint256 internal immutable DEPLOYED_CHAIN_ID = block.chainid;
 
-    mapping(bytes32 digest => bool claimed) public claimedDigests;
+    mapping(bytes32 digest => bool claimed) internal claimedDigests;
 
     constructor(uint256 maxLifespan) {
         MAX_LIFESPAN = maxLifespan;
@@ -57,10 +42,16 @@ contract CreatorClaimRegistry {
         DOMAIN_SEPARATOR = deriveDomainSeparator();
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function name() public pure returns (string memory) {
         return "ContractCreatorClaimRegistry";
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function claimAsCreator(
         CreatorClaim calldata claim,
         bytes calldata signature
@@ -75,6 +66,9 @@ contract CreatorClaimRegistry {
         updateDigestAndEmit(claimingCreator, claim.contractAddress, digest);
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function claimAsCreator(CreatorClaim calldata claim, bytes32 r, bytes32 vs)
         public
     {
@@ -88,10 +82,16 @@ contract CreatorClaimRegistry {
         updateDigestAndEmit(claimingCreator, claim.contractAddress, digest);
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function revokeAsCreator(address contractAddress) public {
         emit RevokeAsCreator(msg.sender, contractAddress);
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function domainSeparator() public view returns (bytes32) {
         if (block.chainid != DEPLOYED_CHAIN_ID) {
             return deriveDomainSeparator();
@@ -100,6 +100,9 @@ contract CreatorClaimRegistry {
         }
     }
 
+    /**
+     * @inheritdoc ICreatorClaimRegistry
+     */
     function deriveDigest(CreatorClaim calldata claim)
         public
         view
@@ -110,7 +113,7 @@ contract CreatorClaimRegistry {
     }
 
     function validateCallFromOwner(address contractAddress) internal view {
-        address contractOwner = Ownable(contractAddress).owner();
+        address contractOwner = IOwnable(contractAddress).owner();
         // only the contract owner can submit a claim, but the claim may be for
         // any address, as long as the signature is valid
         if (msg.sender != contractOwner) {
@@ -160,11 +163,11 @@ contract CreatorClaimRegistry {
                 return;
             }
         }
-        // if not normal signature length, try EIP1271
+        // if not normal signature length, try ERC1271
         // compact signatures should use other method
         if (claimingCreator.code.length != 0) {
-            // otherwise try EIP1271
-            if (!tryEIP1271(claimingCreator, digest, signature)) {
+            // otherwise try ERC1271
+            if (!tryERC1271(claimingCreator, digest, signature)) {
                 revert InvalidSignature();
             }
         } else {
@@ -172,13 +175,13 @@ contract CreatorClaimRegistry {
         }
     }
 
-    function tryEIP1271(
+    function tryERC1271(
         address claimingCreator,
         bytes32 digest,
         bytes calldata signature
     ) internal view returns (bool) {
-        return EIP1271(claimingCreator).isValidSignature(digest, signature)
-            == EIP1271_MAGIC_VALUE;
+        return IERC1271(claimingCreator).isValidSignature(digest, signature)
+            == ERC1271_MAGIC_VALUE;
     }
 
     function validateSignerCompact(
@@ -219,7 +222,7 @@ contract CreatorClaimRegistry {
     {
         return keccak256(
             abi.encode(
-                CONTRACT_OWNERSHIP_TYPEHASH,
+                CREATOR_CLAIM_TYPEHASH,
                 claim.creator,
                 claim.contractAddress,
                 claim.timestamp,
