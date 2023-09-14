@@ -6,26 +6,26 @@ import {IERC1271} from "./interfaces/IERC1271.sol";
 import {IOwnable} from "./interfaces/IOwnable.sol";
 
 import {
-    ICreatorClaimRegistry,
+    ICreatorClaimValidator,
     CreatorClaim
-} from "./interfaces/ICreatorClaimRegistry.sol";
+} from "./interfaces/ICreatorClaimValidator.sol";
 
-contract CreatorClaimRegistry is ICreatorClaimRegistry {
+contract CreatorClaimValidator is ICreatorClaimValidator {
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     bytes32 public constant CREATOR_CLAIM_TYPEHASH = keccak256(
         "CreatorClaim(address creator,address contractAddress,uint256 "
         "timestamp,uint256 lifespan)"
     );
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
         "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
     );
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     uint256 public immutable MAX_LIFESPAN;
 
@@ -43,14 +43,14 @@ contract CreatorClaimRegistry is ICreatorClaimRegistry {
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function name() public pure returns (string memory) {
-        return "ContractCreatorClaimRegistry";
+        return "ContractCreatorClaimValidator";
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function claimAsCreator(
         CreatorClaim calldata claim,
@@ -67,7 +67,7 @@ contract CreatorClaimRegistry is ICreatorClaimRegistry {
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function claimAsCreator(CreatorClaim calldata claim, bytes32 r, bytes32 vs)
         public
@@ -83,14 +83,14 @@ contract CreatorClaimRegistry is ICreatorClaimRegistry {
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function revokeAsCreator(address contractAddress) public {
         emit RevokeAsCreator(msg.sender, contractAddress);
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function domainSeparator() public view returns (bytes32) {
         if (block.chainid != DEPLOYED_CHAIN_ID) {
@@ -101,7 +101,7 @@ contract CreatorClaimRegistry is ICreatorClaimRegistry {
     }
 
     /**
-     * @inheritdoc ICreatorClaimRegistry
+     * @inheritdoc ICreatorClaimValidator
      */
     function deriveDigest(CreatorClaim calldata claim)
         public

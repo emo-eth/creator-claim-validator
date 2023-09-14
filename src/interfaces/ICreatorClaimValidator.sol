@@ -13,7 +13,7 @@ struct CreatorClaim {
     uint256 lifespan;
 }
 
-interface ICreatorClaimRegistry {
+interface ICreatorClaimValidator {
     ///@notice emitted when a signed claim is submitted
     event ClaimAsCreator(
         address indexed creator, address indexed contractAddress
