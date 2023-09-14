@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import {ECDSA} from "solady/utils/ECDSA.sol";
 
-struct ContractCreatorClaim {
+struct CreatorClaim {
     address creator;
     address contractAddress;
     uint256 timestamp;
@@ -14,7 +14,14 @@ interface Ownable {
     function owner() external view returns (address);
 }
 
-contract ContractCreatorClaimRegistry {
+interface EIP1271 {
+    function isValidSignature(bytes32 hash, bytes calldata signature)
+        external
+        view
+        returns (bytes4);
+}
+
+contract CreatorClaimRegistry {
     event ClaimAsCreator(
         address indexed creator, address indexed contractAddress
     );
@@ -26,8 +33,8 @@ contract ContractCreatorClaimRegistry {
     error TimestampExpired();
     error TimestampInFuture();
     error InvalidLifespan();
-    error InvalidSigner();
     error DigestAlreadyUsed();
+    error InvalidSignature();
 
     bytes32 public constant CONTRACT_OWNERSHIP_TYPEHASH = keccak256(
         "ContractOwnershipClaim(address creator,address contractAddress,uint256 "
@@ -36,6 +43,7 @@ contract ContractCreatorClaimRegistry {
     bytes32 public constant EIP712_DOMAIN_TYPEHASH = keccak256(
         "EIP712Domain(string name,uint256 chainId,address verifyingContract)"
     );
+    bytes4 internal constant EIP1271_MAGIC_VALUE = 0x1626ba7e;
     uint256 public immutable MAX_LIFESPAN;
 
     bytes32 internal immutable DOMAIN_SEPARATOR;
@@ -54,7 +62,7 @@ contract ContractCreatorClaimRegistry {
     }
 
     function claimAsCreator(
-        ContractCreatorClaim calldata claim,
+        CreatorClaim calldata claim,
         bytes calldata signature
     ) public {
         // checks
@@ -67,11 +75,9 @@ contract ContractCreatorClaimRegistry {
         updateDigestAndEmit(claimingCreator, claim.contractAddress, digest);
     }
 
-    function claimAsCreator(
-        ContractCreatorClaim calldata claim,
-        bytes32 r,
-        bytes32 vs
-    ) public {
+    function claimAsCreator(CreatorClaim calldata claim, bytes32 r, bytes32 vs)
+        public
+    {
         // checks
         validateCallFromOwner(claim.contractAddress);
         validateTimestamp(claim.timestamp, claim.lifespan);
@@ -94,7 +100,7 @@ contract ContractCreatorClaimRegistry {
         }
     }
 
-    function deriveDigest(ContractCreatorClaim calldata claim)
+    function deriveDigest(CreatorClaim calldata claim)
         public
         view
         returns (bytes32 digest)
@@ -128,7 +134,7 @@ contract ContractCreatorClaimRegistry {
         }
     }
 
-    function validateDigest(ContractCreatorClaim calldata claim)
+    function validateDigest(CreatorClaim calldata claim)
         internal
         view
         returns (bytes32)
@@ -145,10 +151,34 @@ contract ContractCreatorClaimRegistry {
         bytes32 digest,
         bytes calldata signature
     ) internal view {
-        address recovered = ECDSA.recover(digest, signature);
-        if (recovered != claimingCreator) {
-            revert InvalidSigner();
+        // try to recover with ECDSA first if normal signature length
+
+        if (signature.length == 65) {
+            address recovered =
+                ECDSA.recover({hash: digest, signature: signature});
+            if (recovered == claimingCreator) {
+                return;
+            }
         }
+        // if not normal signature length, try EIP1271
+        // compact signatures should use other method
+        if (claimingCreator.code.length != 0) {
+            // otherwise try EIP1271
+            if (!tryEIP1271(claimingCreator, digest, signature)) {
+                revert InvalidSignature();
+            }
+        } else {
+            revert InvalidSignature();
+        }
+    }
+
+    function tryEIP1271(
+        address claimingCreator,
+        bytes32 digest,
+        bytes calldata signature
+    ) internal view returns (bool) {
+        return EIP1271(claimingCreator).isValidSignature(digest, signature)
+            == EIP1271_MAGIC_VALUE;
     }
 
     function validateSignerCompact(
@@ -159,7 +189,7 @@ contract ContractCreatorClaimRegistry {
     ) internal view {
         address recovered = ECDSA.recover({hash: digest, r: r, vs: vs});
         if (recovered != claimingCreator) {
-            revert InvalidSigner();
+            revert InvalidSignature();
         }
     }
 
@@ -182,7 +212,7 @@ contract ContractCreatorClaimRegistry {
         );
     }
 
-    function hashContractOwnershipClaim(ContractCreatorClaim calldata claim)
+    function hashContractOwnershipClaim(CreatorClaim calldata claim)
         internal
         pure
         returns (bytes32)

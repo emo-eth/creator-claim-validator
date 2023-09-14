@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.13;
 
-import {Test, console2} from "forge-std/Test.sol";
+import {Test} from "forge-std/Test.sol";
 import {
-    ContractCreatorClaimRegistry,
-    ContractCreatorClaim
-} from "../src/ContractCreatorClaimRegistry.sol";
-import {ECDSA} from "solady/utils/ECDSA.sol";
+    CreatorClaimRegistry, CreatorClaim
+} from "../src/CreatorClaimRegistry.sol";
 
 contract Ownable {
     address public owner;
@@ -20,8 +18,8 @@ contract Ownable {
     }
 }
 
-contract ContractCreatorClaimRegistryTest is Test {
-    ContractCreatorClaimRegistry test;
+contract CreatorClaimRegistryTest is Test {
+    CreatorClaimRegistry test;
     Ownable ownable;
 
     event ClaimAsCreator(
@@ -32,7 +30,7 @@ contract ContractCreatorClaimRegistryTest is Test {
     );
 
     function setUp() public {
-        test = new ContractCreatorClaimRegistry(7 days);
+        test = new CreatorClaimRegistry(7 days);
         ownable = new Ownable(address(this));
     }
 
@@ -55,36 +53,36 @@ contract ContractCreatorClaimRegistryTest is Test {
 
     function testClaimOwnership_notFromOwner() public {
         ownable.setOwner(makeAddr("not this"));
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: block.timestamp,
             lifespan: 0
         });
-        vm.expectRevert(ContractCreatorClaimRegistry.NotOwner.selector);
+        vm.expectRevert(CreatorClaimRegistry.NotOwner.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
     function testClaimOwnership_InvalidLifespan(uint64 lifespanDelta) public {
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: block.timestamp,
             lifespan: test.MAX_LIFESPAN() + 1 + uint256(lifespanDelta)
         });
-        vm.expectRevert(ContractCreatorClaimRegistry.InvalidLifespan.selector);
+        vm.expectRevert(CreatorClaimRegistry.InvalidLifespan.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
     function testClaimOwnership_LifespanZeroDefault() public {
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: block.timestamp,
             lifespan: 0
         });
         vm.warp(block.timestamp + test.MAX_LIFESPAN() + 1);
-        vm.expectRevert(ContractCreatorClaimRegistry.TimestampExpired.selector);
+        vm.expectRevert(CreatorClaimRegistry.TimestampExpired.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -97,13 +95,13 @@ contract ContractCreatorClaimRegistryTest is Test {
         timestamp = bound(timestamp, 1, 2 ** 64 - 1);
         timestampLifespanDelta = bound(timestampLifespanDelta, 1, 2 ** 64 - 1);
         vm.warp(timestamp + lifespan + timestampLifespanDelta);
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: timestamp,
             lifespan: lifespan
         });
-        vm.expectRevert(ContractCreatorClaimRegistry.TimestampExpired.selector);
+        vm.expectRevert(CreatorClaimRegistry.TimestampExpired.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
@@ -117,22 +115,22 @@ contract ContractCreatorClaimRegistryTest is Test {
             bound(signatureTimestamp, currentTimestamp + 1, 2 ** 256 - 1);
 
         vm.warp(currentTimestamp);
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: signatureTimestamp,
             lifespan: test.MAX_LIFESPAN()
         });
-        vm.expectRevert(ContractCreatorClaimRegistry.TimestampInFuture.selector);
+        vm.expectRevert(CreatorClaimRegistry.TimestampInFuture.selector);
         test.claimAsCreator(claim, new bytes(0));
     }
 
-    function testClaimOwnership_InvalidSigner() public {
+    function testClaimOwnership_InvalidSignature() public {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
-            creator: address(this),
+        CreatorClaim memory claim = CreatorClaim({
+            creator: makeAddr("no code"),
             contractAddress: address(ownable),
             timestamp: block.timestamp,
             lifespan: test.MAX_LIFESPAN()
@@ -141,7 +139,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.key, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
 
-        vm.expectRevert(ContractCreatorClaimRegistry.InvalidSigner.selector);
+        vm.expectRevert(CreatorClaimRegistry.InvalidSignature.selector);
         test.claimAsCreator(claim, signature);
     }
 
@@ -149,7 +147,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: signer.addr,
             contractAddress: address(ownable),
             timestamp: block.timestamp,
@@ -167,7 +165,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: signer.addr,
             contractAddress: address(ownable),
             timestamp: block.timestamp,
@@ -180,7 +178,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.expectEmit(true, true, false, false, address(test));
         emit ClaimAsCreator(signer.addr, address(ownable));
         test.claimAsCreator(claim, signature);
-        vm.expectRevert(ContractCreatorClaimRegistry.DigestAlreadyUsed.selector);
+        vm.expectRevert(CreatorClaimRegistry.DigestAlreadyUsed.selector);
         test.claimAsCreator(claim, signature);
     }
 
@@ -188,7 +186,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: signer.addr,
             contractAddress: address(ownable),
             timestamp: block.timestamp,
@@ -202,11 +200,11 @@ contract ContractCreatorClaimRegistryTest is Test {
         test.claimAsCreator(claim, r, vs);
     }
 
-    function testClaimOwnership_2098Compact_InvalidSigner() public {
+    function testClaimOwnership_2098Compact_InvalidSignature() public {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: address(this),
             contractAddress: address(ownable),
             timestamp: block.timestamp,
@@ -215,7 +213,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         bytes32 digest = test.deriveDigest(claim);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signer.key, digest);
         bytes32 vs = bytes32(uint256(((v == 28) ? 1 : 0)) << 255 | uint256(s));
-        vm.expectRevert(ContractCreatorClaimRegistry.InvalidSigner.selector);
+        vm.expectRevert(CreatorClaimRegistry.InvalidSignature.selector);
         test.claimAsCreator(claim, r, vs);
     }
 
@@ -223,7 +221,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.warp(test.MAX_LIFESPAN());
         Account memory signer = makeAccount("signer");
 
-        ContractCreatorClaim memory claim = ContractCreatorClaim({
+        CreatorClaim memory claim = CreatorClaim({
             creator: signer.addr,
             contractAddress: address(ownable),
             timestamp: block.timestamp,
@@ -236,7 +234,7 @@ contract ContractCreatorClaimRegistryTest is Test {
         vm.expectEmit(true, true, false, false, address(test));
         emit ClaimAsCreator(signer.addr, address(ownable));
         test.claimAsCreator(claim, r, vs);
-        vm.expectRevert(ContractCreatorClaimRegistry.DigestAlreadyUsed.selector);
+        vm.expectRevert(CreatorClaimRegistry.DigestAlreadyUsed.selector);
         test.claimAsCreator(claim, signature);
     }
 
