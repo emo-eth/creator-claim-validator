@@ -44,6 +44,13 @@ interface ICreatorClaimValidator {
     function MAX_LIFESPAN() external view returns (uint256);
 
     /**
+     * @notice Checks msg.sender is the `owner()` of the contract at
+     *         contractAddress, and emits a ClaimAsCreator event if so.
+     * @param contractAddress The contract address to check
+     */
+    function claimSelfAsCreator(address contractAddress) external;
+
+    /**
      * @notice Submit a claim as the "creator" of a contract.
      *         The caller must be the owner of the contract, but may submit a
      *         claim on behalf of any address. The claim and  the signature must

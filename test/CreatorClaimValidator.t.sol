@@ -247,5 +247,15 @@ contract CreatorClaimValidatorTest is Test {
         test.revokeAsCreator(target);
     }
 
-    // function testFuzz_SetNumber(uint256 x) public {}
+    function testClaimSelfAsOwner_NotOwner() public {
+        ownable.setOwner(makeAddr("not this"));
+        vm.expectRevert(ICreatorClaimValidator.NotOwner.selector);
+        test.claimSelfAsCreator(address(ownable));
+    }
+
+    function testClaimSelfAsOwner() public {
+        vm.expectEmit(true, true, false, false, address(test));
+        emit ClaimAsCreator(address(this), address(ownable));
+        test.claimSelfAsCreator(address(ownable));
+    }
 }

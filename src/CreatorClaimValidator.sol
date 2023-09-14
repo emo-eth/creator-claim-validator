@@ -52,6 +52,14 @@ contract CreatorClaimValidator is ICreatorClaimValidator {
     /**
      * @inheritdoc ICreatorClaimValidator
      */
+    function claimSelfAsCreator(address contractAddress) public {
+        validateCallFromOwner(contractAddress);
+        emit ClaimAsCreator(msg.sender, contractAddress);
+    }
+
+    /**
+     * @inheritdoc ICreatorClaimValidator
+     */
     function claimAsCreator(
         CreatorClaim calldata claim,
         bytes calldata signature
